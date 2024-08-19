@@ -1,0 +1,161 @@
+@font-face {
+    font-family: 'Roboto';
+    src: url('fonts/Roboto-Regular.woff2') format('woff2'),
+        /* 高优先级 */
+        url('fonts/Roboto-Regular.woff') format('woff'),
+        url('fonts/Roboto-Regular.ttf') format('truetype');
+    /* 低优先级 */
+    font-weight: 400;
+    /* 标准字重 */
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'Roboto';
+    src: url('fonts/Roboto-Bold.woff2') format('woff2'),
+        url('fonts/Roboto-Bold.woff') format('woff'),
+        url('fonts/Roboto-Bold.ttf') format('truetype');
+    font-weight: 700;
+    /* 加粗字重 */
+    font-style: normal;
+}
+
+p {
+    margin-block-start: 0;
+    margin-block-end: 0;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+}
+
+.container {
+    padding-top: 4px;
+    padding-bottom: 6px;
+    padding-left: 6px;
+    padding-right: 6px;
+    border-left: 0.4px solid #914544;
+    background-color: #FFFAEF;
+    width: 222px;
+    height: 117px;
+    box-shadow: 0px 4px 13px 0px rgba(0, 0, 0, 0.10);
+}
+
+.container p {
+    color: #333333;
+
+}
+
+.content {
+    position: relative;
+
+    padding: 0px;
+    margin: 0px;
+}
+
+.col1 {
+    display: flex;
+    position: relative;
+    align-items: center;
+    /* 垂直居中 */
+
+}
+
+.timebox {
+    font-size: 4px;
+    font-family: "Noto Serif SC", serif;
+    letter-spacing: 0.3px;
+    font-style: italic;
+    font-weight: 400;
+    display: flex;
+}
+
+.controlpart {
+    font-size: 4px;
+    font-family: "Noto Serif SC", serif;
+    letter-spacing: 0.3px;
+    font-style: italic;
+    font-weight: 400;
+    display: flex;
+    position: absolute;
+    right: 10px;
+}
+
+.controlpart p {
+    display: flex;
+
+}
+
+.timebox p {
+    display: flex;
+}
+
+.country {
+    margin-left: 2px;
+}
+
+.index {
+    margin-left: 2px;
+}
+
+
+.closeicon {
+    display: flex;
+    position: absolute;
+    top: -1.5;
+    right: 0;
+    padding: 0%;
+    margin-left: 6px;
+}
+
+.label {
+    font-size: 6px;
+    font-family: "Noto Serif SC", serif;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    width: 177px;
+}
+
+.author {
+    font-size: 3.5px;
+    font-family: "Noto Serif SC", serif;
+    letter-spacing: 0.3px;
+    font-style: italic;
+    font-weight: 400;
+    margin-top: 2px;
+    width: 177px;
+}
+
+.second_all {
+    margin-right: 0px;
+}
+
+.fi {
+    width: 20px;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    position: absolute;
+    right: 0px;
+    top: 14px;
+}
+
+.col3 {
+    margin-top: 6px;
+}
+
+.col3 p {
+    font-size: 4px;
+    font-family: PingFang SC;
+    letter-spacing: 0.1px;
+    text-align: justify;
+}
+
+.abstract_all {
+    margin-top: 3px;
+    line-height: 6px;
+}
+
+.detail-box {
+    position: absolute;
+    z-index: 100;
+    /* 确保定位属性设置，使z-index有效 */
+}

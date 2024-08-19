@@ -1,0 +1,66 @@
+/* 设置所有元素的边距为0 */
+* {
+  margin: 0;
+  padding: 0;
+}
+
+#svg-container {
+  width: 4268px;
+  /* 设定宽度 */
+  height: 600px;
+  /* 设定高度 */
+  resize: both;
+  /* 允许调整大小 */
+  background-color: #FFFAEF;
+  position: relative;
+}
+
+.svg-object {
+  position: absolute;
+}
+
+#area {
+  width: 100%;
+  /* SVG 宽度占满容器 */
+  height: 100%;
+  /* SVG 高度占满容器 */
+}
+
+svg {
+  pointer-events: none;
+}
+
+svg path {
+  pointer-events: all;
+}
+
+.detail-box {
+  /* border-left: 0.2px solid #914544;
+  padding: 6px; */
+  position: absolute;
+  /* background-color: #FFFAEF;
+  display: none;
+  width: 222px;
+  box-shadow: 0px 4px 13px 0px rgba(0, 0, 0, 0.10); */
+}
+
+.interactive-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+}
+
+.dist {
+  /* border: 1px solid#000; */
+  flex: 1;
+  /* text-align: center; */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  position: relative;
+  /* 新增的样式 */
+}
