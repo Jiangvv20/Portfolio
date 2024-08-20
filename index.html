@@ -14,8 +14,13 @@
         }
 
         function redirectToPage(pageUrl) {
-            const zoomLevel = calculateZoomLevel();
-            window.location.href = pageUrl + '?zoom=' + zoomLevel; // 将zoom level作为查询参数传递
+            // 判断页面是否是circle.html
+            if (pageUrl === 'circle.html') {
+                window.location.href = pageUrl; // 直接重定向
+            } else {
+                const zoomLevel = calculateZoomLevel();
+                window.location.href = pageUrl + '?zoom=' + zoomLevel; // 将zoom level作为查询参数传递
+            }
         }
     </script>
 </head>
