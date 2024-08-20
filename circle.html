@@ -1,0 +1,1800 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <!-- <meta name="viewport" content="width=device-width, initial-scale=1.0"> -->
+    <title>节点图</title>
+    <link href="bootstrap.min.css" rel="stylesheet">
+    <link href="maincircle.css" rel="stylesheet">
+    <script src="d3.v6.min.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="text-center mt-3">
+            <h3>“一带一路”沿线国家设计政策发布机构合作网络图</h3>
+        </div>
+
+        <div id="details">
+            <div class="detail-section" id="firstDetail">
+                <!-- First content -->
+                <svg id="firstDetailSvg" width="100%" height="100%"></svg>
+            </div>
+            <div class="detail-section" id="secondDetail">
+                <!-- Second content -->
+                <svg id="secondDetailSvg" width="100%" height="100%"></svg>
+            </div>
+            <div class="detail-section" id="thirdDetail">
+                <!-- Third content -->
+                <svg id="thirdDetailSvg" width="100%" height="100%"></svg>
+            </div>
+            <div class="detail-section" id="fourthDetail">
+                <!-- Fourth content -->
+                <svg id="fourthDetailSvg" width="100%" height="100%"></svg>
+            </div>
+        </div>
+
+        <div class="tab-container">
+            <input type="radio" id="international" name="tab" checked>
+            <label for="international" class="tab">国内视图</label>
+            <input type="radio" id="domestic" name="tab">
+            <label for="domestic" class="tab">国外视图</label>
+            <div class="slider"></div>
+        </div>
+
+
+        <svg id="svgcanvas" width="1080" height="1080" viewBox="0 0 1540 1512" style="overflow: visible"></svg>
+    </div>
+    <script>
+        function loadData_international() {
+            d3.select("#svgcanvas").selectAll("*").remove(); // 清空 SVG 内的所有内容
+            const jsonFile = 'https://jiangweiludata.oss-cn-beijing.aliyuncs.com/data_0514.json';
+
+
+            d3.json(jsonFile).then(function (data) {
+
+                const nodes = data.nodes;
+                const links = data.links;
+                const svg = d3.select("#svgcanvas");
+                const firstDetailSvg = d3.select("#firstDetailSvg")
+                const secondDetailSvg = d3.select("#secondDetailSvg")
+                const thirdDetailSvg = d3.select("#thirdDetailSvg")
+                const fourthDetailSvg = d3.select("#fourthDetailSvg")
+
+                const width = +svg.attr("width");
+                const height = +svg.attr("height");
+                const center = { x: 1080 / 2, y: 1080 / 2 };
+                const outerRadius = 484.6;
+                const innerRadius = Math.min(width, height) * 0.1;
+                const outerNodes = nodes.filter(d => d.class === 'D');
+                const innerNodes = nodes.filter(d => d.class !== 'D');
+                const categoryColors = {
+                    "国家经济与行业战略": "#fff",
+                    "工业技术与传统工艺": "#fff",
+                    "文化创意产业": "#fff",
+                    "设计推广与奖励": "#fff"
+                };
+                const categoryStrokeColors = {
+                    "国家经济与行业战略": "#3E227A",
+                    "工业技术与传统工艺": "#225686",
+                    "文化创意产业": "#8D4222",
+                    "设计推广与奖励": "#226D64"
+                };
+                const categoryRingColors = {
+                    "国家经济与行业战略": "#3500A6",
+                    "工业技术与传统工艺": "#004D92",
+                    "文化创意产业": "#D84100",
+                    "设计推广与奖励": "#008071"
+                };
+
+                drawTextDefault();
+
+                //以下为外圈布局计算
+
+                // 创建比例尺控制外圈节点大小，范围从4到22
+                const outerNodeSizeScale = d3.scaleLinear()
+                    .domain([d3.min(outerNodes, d => d.Degree_Centrality), d3.max(outerNodes, d => d.Degree_Centrality)])
+                    .range([5, 20]);  // 控制外圈节点大小的比例尺
+
+                // 设置节点间固定的空隙
+                const fixedSpacing = 2;
+                const categorySpacing = {
+                    "国家经济与行业战略": 0.036,  // 例如，非政府组织之后的间隙为0.05弧度
+                    "设计推广与奖励": 0.012,
+                    "文化创意产业": 0.012,
+                    "工业技术与传统工艺": 0.036,
+                    // 根据需要添加更多类别及其间隙
+                };
+
+
+                // 根据节点的category和Degree_Centrality属性进行排序
+                outerNodes.sort((a, b) => a.category.localeCompare(b.category) || b.Degree_Centrality - a.Degree_Centrality);
+
+                function setPositions() {
+                    // 计算总角度
+                    const totalLength = d3.sum(outerNodes, d => (2 * outerNodeSizeScale(d.Degree_Centrality)) + fixedSpacing);
+                    const angleStep = 2 * Math.PI / totalLength; // 每个单位长度对应的角度
+
+                    // 设置外圈节点的位置
+                    let currentAngle = 0; // 初始角度
+                    let previousCategory = null;
+                    outerNodes.forEach(node => {
+                        if (previousCategory !== null && node.category !== previousCategory) {
+                            currentAngle += categorySpacing[previousCategory] || 0;  // 如果未定义则默认不增加间隙
+                        }
+                        const nodeRadius = outerNodeSizeScale(node.Degree_Centrality);
+                        node.x = center.x + outerRadius * Math.cos(currentAngle);
+                        node.y = center.y + outerRadius * Math.sin(currentAngle);
+                        currentAngle += (2 * nodeRadius + fixedSpacing) / outerRadius; // 更新当前角度，将半径转换为圆周上的角度并加上固定间隙
+                        previousCategory = node.category;
+
+                    });
+                }
+                setPositions();
+                ////////////////////////////////////////////////////
+
+
+                // 创建比例尺来计算内圈圆的半径
+                const radiusScale = d3.scaleLinear()
+                    .domain([d3.min(nodes, d => d.value), d3.max(nodes, d => d.value)])
+                    .range([3, 20]);  // 设定最小半径和最大半径
+
+                const angle = 2 * Math.PI / outerNodes.length;
+                let rotation = 0; // 初始旋转角度
+
+                function setrollPositions() {
+                    outerNodes.forEach((d, i) => {
+                        d.x = center.x + outerRadius * Math.cos(i * angle + rotation);
+                        d.y = center.y + outerRadius * Math.sin(i * angle + rotation);
+                    });
+                }
+
+                const bgGroup = svg.append("g").attr("class", "bg-group");
+                const ringGroup = svg.append("g").attr("class", "ring-group");
+                const outerTextGroup = svg.append("g").attr("class", "outertext-group");
+                const innerTextGroup = svg.append("g").attr("class", "innertext-group");
+                const linksGroup = svg.append("g").attr("class", "links-group");
+                const nodesGroup = svg.append("g").attr("class", "nodes-group");
+                var outlabelGroup = svg.append("g").attr("id", "outlabelGroup");
+                var innlabelGroup = svg.append("g").attr("id", "innlabelGroup");
+
+                const categoryFillColors = {
+                    "非政府组织": "#EAF4E2",
+                    "政府部门及区域性政府间组织": "#DFE6F8",
+                    "政府附属机构": "#DDD3F2",
+                    "学术及研究机构": "#F4DEDD",
+                    "企业和商业服务机构": "#D2EAF2"
+                };
+
+                const categoryInnerStrokeColors = {
+                    "非政府组织": "#46781E",
+                    "政府部门及区域性政府间组织": "#244692",
+                    "政府附属机构": "#5C3F9A",
+                    "学术及研究机构": "#8C3933",
+                    "企业和商业服务机构": "#34788D"
+                };
+
+                // 为每个类别创建单独的pack布局
+                const categories = ["非政府组织", "政府部门及区域性政府间组织", "政府附属机构", "学术及研究机构", "企业和商业服务机构"];
+                const categoryGroups = {};
+                categories.forEach(cat => {
+                    categoryGroups[cat] = innerNodes.filter(d => d.category === cat);
+                });
+
+                const packLayouts = {};
+                const packCenters = {};
+                const radialAngle = 2 * Math.PI / categories.length;
+
+                console.log(categoryGroups);
+
+                const categoryValues = {};
+                categories.forEach(cat => {
+                    categoryValues[cat] = d3.sum(categoryGroups[cat], d => d.Degree_Centrality);
+                });
+                console.log(categoryValues);
+
+                const customPackCenters = {
+                    "非政府组织": { x: 320, y: 520 },
+                    "政府部门及区域性政府间组织": { x: 645, y: 520 },
+                    "政府附属机构": { x: 470, y: 345 },
+                    "学术及研究机构": { x: 655, y: 340 },
+                    "企业和商业服务机构": { x: 535, y: 820 }
+                    // 根据需要添加更多的自定义位置
+                };
+
+                // 创建一个比例尺来根据节点值总和调整pack的大小
+                const sizeScale = d3.scaleLinear()
+                    .domain([0, d3.max(Object.values(categoryValues))]) // 使用 Object.values 来获取可迭代数组
+                    .range([100, 340]); // 设置最小和最大pack大小
+
+
+                Object.keys(categoryGroups).forEach((cat, i) => {
+                    const pack = d3.pack()
+                        .size([sizeScale(categoryValues[cat]), sizeScale(categoryValues[cat])])
+                        .padding(1);
+                    const root = d3.hierarchy({ children: categoryGroups[cat] })
+                        .sum(d => d.Degree_Centrality);
+                    packLayouts[cat] = pack(root).descendants().slice(1);
+                    const packCenter = customPackCenters[cat] || {
+                        x: center.x + (innerRadius + sizeScale(categoryValues[cat]) / 2) * Math.cos(i * radialAngle),
+                        y: center.y + (innerRadius + sizeScale(categoryValues[cat]) / 2) * Math.sin(i * radialAngle)
+                    };
+                    packCenters[cat] = packCenter;
+                    // 添加这段代码来绘制包围圆
+                    // const boundingCircle = bgGroup.append("circle")
+                    //     .attr('class', 'bg')
+                    //     .attr("id", `bg-${cat.replace(/\s+/g, '-')}`)
+                    //     .attr("cx", packCenter.x)
+                    //     .attr("cy", packCenter.y)
+                    //     .attr("r", sizeScale(categoryValues[cat]) / 2 + 30)
+                    //     .attr("fill", "none");
+                });
+
+                function setBgCircle() {
+                    d3.select("#bg-非政府组织")
+                        .attr("transform", "translate(40,38)")
+                        .attr("fill", "#49A700")
+                        .attr("opacity", 0.2);
+                    // d3.select("#bg-政府部门及区域性政府间组织")
+                    //     .attr("transform", "translate(70,66)")
+                    //     .attr("fill", "#004DFF")
+                    //     .attr("opacity", 0.2);
+                    d3.select("#bg-政府附属机构")
+                        .attr("transform", "translate(-32,-32)")
+                        .attr("fill", "#5E20E3")
+                        .attr("opacity", 0.2);
+                    d3.select("#bg-学术及研究机构")
+                        .attr("transform", "translate(-20,-24)")
+                        .attr("fill", "#A0140B")
+                        .attr("opacity", 0.2);
+                    d3.select("#bg-企业和商业服务机构")
+                        .attr("transform", "translate(-30,-34)")
+                        .attr("fill", "#009AC9")
+                        .attr("opacity", 0.2);
+
+                }
+                // setBgCircle();
+
+                function customBezierCurve(sourceNode, targetNode, cat) {
+                    if (!sourceNode || !targetNode) {
+                        console.error('未定义的源节点或目标节点:', sourceNode, targetNode);
+                        return ''; // 返回一个空字符串，避免进一步的错误
+                    }
+                    let x1 = sourceNode.x;
+                    let y1 = sourceNode.y;
+                    let x2 = targetNode.x + packCenters[cat].x - innerRadius;
+                    let y2 = targetNode.y + packCenters[cat].y - innerRadius
+
+                    // 计算中点
+                    const midX = (x1 + x2) / 2;
+                    const midY = (y1 + y2) / 2;
+
+                    // 计算距离，用于调整控制点
+                    const dx = x2 - x1;
+                    const dy = y2 - y1;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // 控制点距离中点的偏移量
+                    const offset = Math.min(80, distance / 2); // 控制点的偏移量可以调整曲线的弯曲程度
+
+                    // 控制点位置，垂直于源和目标之间的直线
+                    const controlX = midX - dy / distance * offset;
+                    const controlY = midY + dx / distance * offset;
+
+                    // 生成二次贝塞尔曲线路径
+                    return `M ${x1},${y1} Q ${controlX},${controlY} ${x2},${y2}`;
+                }
+
+
+                function updateLinks() {
+                    linksGroup.selectAll(".link").remove(); // 移除旧的连接线，这一步可以优化
+
+                    // 将连接线的数据绑定到新的路径元素
+                    const linksEnter = linksGroup.selectAll(".link")
+                        .data(links)  // 绑定每个连接的数据
+                        .enter()
+                        .append("path")
+                        .attr("class", "link")
+                        .attr("d", d => {
+                            const source = outerNodes.find(node => node.id === d.source);
+                            const targetCategory = categories.find(cat => packLayouts[cat].some(node => node.data.id === d.target));
+                            const target = packLayouts[targetCategory]?.find(node => node.data.id === d.target);
+
+                            return source && target ? customBezierCurve(source, target, targetCategory) : null;
+                        })
+                        .attr('fill', 'none')
+                        .attr('stroke', d => {
+                            const source = outerNodes.find(node => node.id === d.source);
+                            return source ? categoryStrokeColors[source.category] : '#ccc';
+                        })
+                        .attr('opacity', 0.1)
+                        .attr('stroke-width', 0.8)
+                        .on("click", function (event, d) {
+                            console.log("Clicked link data:", d);
+                            // 输出点击的连接线数据
+                        });
+                    // 添加路径动画
+                    linksEnter.each(function () {
+                        const length = this.getTotalLength();
+                        d3.select(this)
+                            .attr("stroke-dasharray", length + " " + length)
+                            .attr("stroke-dashoffset", length)
+                            .transition()
+                            .duration(2000) // 可以根据实际情况调整动画时间
+                            .attr("stroke-dashoffset", 0);
+                    });
+                }
+
+                updateLinks();
+
+                categories.forEach(cat => {
+                    nodesGroup.selectAll(".node-" + cat)
+                        .data(packLayouts[cat])
+                        .enter().append("circle")
+                        .attr("class", "node")
+                        .attr("id", d => "circle-" + d.data.id)  // 给每个圈赋予唯一的 ID
+                        .attr("cx", d => d.x + packCenters[cat].x - innerRadius)
+                        .attr("cy", d => d.y + packCenters[cat].y - innerRadius)
+                        // .attr("r", d => radiusScale(d.data.value))
+                        .attr("r", d => d.r)
+                        .attr("fill", d => categoryFillColors[d.data.category] || "#ddd")
+                        .attr("stroke", d => categoryInnerStrokeColors[d.data.category])
+                        .attr("stroke-width", 0.5);
+                });
+
+
+                //绘制外圈节点
+
+                const outerNodesGroup = nodesGroup.selectAll(".outer-node")
+                    .data(outerNodes)
+                    .enter().append("circle")
+                    .attr("class", "outer-node")
+                    .attr("id", d => "circle-" + d.id)  // 给每个圈赋予唯一的 ID
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y)
+                    .attr("r", d => outerNodeSizeScale(d.Degree_Centrality))
+                    .attr("fill", d => categoryColors[d.category] || "#ddd")
+                    .attr("stroke", d => categoryStrokeColors[d.category])
+                    .attr("stroke-width", 0.4)
+                    .each(function (d) { showOuterLabel(d); });
+                // .on('click', function(event, d) {
+                //     console.log(d)
+                //     });
+
+
+                function drawRing() {
+                    dataForPie = outerNodes;
+                    dataArrayForPie = [
+                        { category: "工业技术与传统工艺", value: 15.6 },
+                        { category: "国家经济与行业战略", value: 101 },
+                        { category: "设计推广与奖励", value: 77.7 },
+                        { category: "文化创意产业", value: 9.3 }
+                    ]
+
+                    const arc = d3.arc()
+                        .innerRadius(512)
+                        .outerRadius(522)
+                        // .cornerRadius(50); // 设置圆角大小
+                        .cornerRadius(0); // 设置圆角大小
+
+
+                    const pie = d3.pie()
+                        .sort(null)
+                        .value(d => d.value)
+                        .startAngle(1.55) // 从3点钟方向开始
+                        .endAngle(2 * Math.PI + 1.55); // 结束于360度，形成一个完整的圆;
+
+                    const arcs = ringGroup.append("g")
+                        .attr("transform", `translate(${1080 / 2}, ${1080 / 2})`)
+                        .selectAll(".arc")
+                        .data(pie(dataArrayForPie))
+                        .enter().append("g");
+
+                    arcs.append("path")
+                        .attr("d", arc)
+                        .attr("class", "arc")
+                        .attr("id", d => `arc-${d.data.category.replace(/\s+/g, '-')}`) // 使用类别名生成唯一ID
+                        .attr("fill", d => categoryRingColors[d.data.category]); // 使用类别颜色
+
+                }
+                drawRing();
+                function loadSvgnew() {
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E8%93%9D%E5%BA%95.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        // importedSvg.setAttribute("viewBox", "0 0 569 451"); // 确保viewBox设置正确
+
+                        // 创建SVG容器并设置初始大小
+                        const svgContainer = bgGroup.append("svg")
+                            .attr('class', 'bg')
+                            .attr('id', ('bg-政府部门及区域性政府间组织'))
+                            .attr('x', 140)
+                            .attr('y', 180)
+                            .attr('width', '855')  // 原始宽度
+                            .attr('height', '676') // 原始高度
+                            .node().appendChild(importedSvg);
+
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E7%BA%A2%E5%BA%95.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        // importedSvg.setAttribute("viewBox", "0 0 569 451"); // 确保viewBox设置正确
+
+                        // 创建SVG容器并设置初始大小
+                        const svgContainer = bgGroup.append("svg")
+                            .attr('class', 'bg')
+                            .attr('id', ('bg-学术及研究机构'))
+                            .attr('x', 380)
+                            .attr('y', 150)
+                            .attr('width', '855')  // 原始宽度
+                            .attr('height', '676') // 原始高度
+                            .attr('transform', 'scale(2)')
+                            .node().appendChild(importedSvg);
+
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E7%B4%AB%E5%BA%95.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        // importedSvg.setAttribute("viewBox", "0 0 569 451"); // 确保viewBox设置正确
+
+                        // 创建SVG容器并设置初始大小
+                        const svgContainer = bgGroup.append("svg")
+                            .attr('class', 'bg')
+                            .attr('id', ('bg-政府附属机构'))
+                            .attr('x', 280)
+                            .attr('y', 160)
+                            .attr('transform', 'scale(2)')
+                            .node().appendChild(importedSvg);
+
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E9%9D%92%E5%BA%95.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        // importedSvg.setAttribute("viewBox", "0 0 569 451"); // 确保viewBox设置正确
+
+                        // 创建SVG容器并设置初始大小
+                        const svgContainer = bgGroup.append("svg")
+                            .attr('class', 'bg')
+                            .attr('id', ('bg-企业和商业服务机构'))
+                            .attr('x', 390)
+                            .attr('y', 480)
+                            .attr('transform', 'scale(2)')
+                            .node().appendChild(importedSvg);
+
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E7%BB%BF%E5%BA%95.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        // importedSvg.setAttribute("viewBox", "0 0 569 451"); // 确保viewBox设置正确
+
+                        // 创建SVG容器并设置初始大小
+                        const svgContainer = bgGroup.append("svg")
+                            .attr('class', 'bg')
+                            .attr('id', ('bg-非政府组织'))
+                            .attr('x', 140)
+                            .attr('y', 350)
+                            .attr('transform', 'scale(2)')
+                            .node().appendChild(importedSvg);
+
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+
+
+                }
+                loadSvgnew();
+                function loadSvg() {
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E6%96%87%E5%8C%96%E5%88%9B%E6%84%8F%E4%BA%A7%E4%B8%9A.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 34 89"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = outerTextGroup.append("svg")
+                            .attr('class', 'outertext')
+                            .attr('id', 'outertext-文化创意产业')
+                            .attr('x', 1038)
+                            .attr('y', 410)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E8%AE%BE%E8%AE%A1%E6%8E%A8%E5%B9%BF%E4%B8%8E%E5%A5%96%E5%8A%B1.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 105 35"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = outerTextGroup.append("svg")
+                            .attr('class', 'outertext')
+                            .attr('id', 'outertext-设计推广与奖励')
+                            .attr('x', 520)
+                            .attr('y', -10)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E5%9B%BD%E5%AE%B6%E7%BB%8F%E6%B5%8E%E4%B8%8E%E8%A1%8C%E4%B8%9A%E6%88%98%E7%95%A5.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 124 94"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = outerTextGroup.append("svg")
+                            .attr('class', 'outertext')
+                            .attr('id', 'outertext-国家经济与行业战略')
+                            .attr('x', 190)
+                            .attr('y', 930)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E5%B7%A5%E4%B8%9A%E6%8A%80%E6%9C%AF%E4%B8%8E%E4%BC%A0%E7%BB%9F%E5%B7%A5%E8%89%BA.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 46 131"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = outerTextGroup.append("svg")
+                            .attr('class', 'outertext')
+                            .attr('id', 'outertext-工业技术与传统工艺')
+                            .attr('x', 1026)
+                            .attr('y', 596)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E9%9D%9E%E6%94%BF%E5%BA%9C%E7%BB%84%E7%BB%87.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 65 92"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = innerTextGroup.append("svg")
+                            .attr('class', 'innertext')
+                            .attr('id', 'innertext-非政府组织')
+                            .attr('x', 200)
+                            .attr('y', 432.3)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E6%94%BF%E5%BA%9C%E9%99%84%E5%B1%9E%E6%9C%BA%E6%9E%84.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 71 54"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = innerTextGroup.append("svg")
+                            .attr('class', 'innertext')
+                            .attr('id', 'innertext-政府附属机构')
+                            .attr('x', 355.7)
+                            .attr('y', 215)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E5%AD%A6%E6%9C%AF%E5%8F%8A%E7%A0%94%E7%A9%B6%E6%9C%BA%E6%9E%84.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 72 70"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = innerTextGroup.append("svg")
+                            .attr('class', 'innertext')
+                            .attr('id', 'innertext-学术及研究机构')
+                            .attr('x', 661)
+                            .attr('y', 214)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E6%94%BF%E5%BA%9C%E9%83%A8%E9%97%A8%E5%8F%8A%E5%8C%BA%E5%9F%9F%E6%80%A7%E6%94%BF%E5%BA%9C%E9%97%B4%E5%90%88%E4%BD%9C%E6%9C%BA%E6%9E%84.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 140 202"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = innerTextGroup.append("svg")
+                            .attr('class', 'innertext')
+                            .attr('id', 'innertext-政府部门及区域性政府间组织')
+                            .attr('x', 765)
+                            .attr('y', 406)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+                    d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E4%BC%81%E4%B8%9A%E5%92%8C%E5%95%86%E4%B8%9A%E6%9C%8D%E5%8A%A1%E6%9C%BA%E6%9E%84.svg").then(svgDocument => {
+                        // 获取加载的SVG内容
+                        const importedSvg = svgDocument.documentElement;
+                        importedSvg.setAttribute("viewBox", "0 0 118 35"); // 根据你的SVG实际尺寸调整
+
+                        // 添加SVG内容到页面中
+                        const svgContainer = innerTextGroup.append("svg")
+                            .attr('class', 'innertext')
+                            .attr('id', 'innertext-企业和商业服务机构')
+                            .attr('x', 454)
+                            .attr('y', 851)
+                            .node().appendChild(importedSvg);
+                    })
+                        .catch(error => {
+                            console.error("Error loading SVG:", error);
+                        });
+
+                }
+                // loadSvg();
+                // 假设节点已经被创建在 `nodesGroup` 下
+                nodesGroup.selectAll('.node')
+                    .on('click', function (event, d) {
+
+                        handleNodeClick(d.data);
+
+
+                    });
+
+                nodesGroup.selectAll('.outer-node')
+                    .on('click', function (event, d) {
+
+                        handleNodeClick(d);
+
+                    });
+                function showOuterLabel(d) {
+
+
+                    const angle = Math.atan2(d.y - center.y, d.x - center.x);
+                    const labelX = d.x + Math.cos(angle) * 60; // 标签的偏移量
+                    const labelY = d.y + Math.sin(angle) * 60;
+                    const rotation = angle * (180 / Math.PI); // 角度转换为度
+
+                    // 判断角度，决定文本的锚点
+                    const isTextReversed = rotation > 90 || rotation < -90;
+
+                    const finalRotation = isTextReversed ? rotation + 180 : rotation;
+                    const textAnchor = isTextReversed ? "end" : "start"; // 根据角度决定文本对齐方式
+
+                    outlabelGroup.append("text")
+                        .attr("x", labelX)
+                        .attr("y", labelY)
+                        .attr("transform", `rotate(${finalRotation},${labelX},${labelY})`)
+                        .attr("text-anchor", textAnchor)  // 应用动态锚点位置
+                        .text(d.label)
+                        .style("font-size", "8px")
+                        .style("fill", categoryStrokeColors[d.category])
+                        .attr('opacity', 0)
+                        .transition(600)
+                        .attr('opacity', 1);;
+                }
+
+                function showInnerLabel(d) {
+                    var nodeElement = d3.select(`#circle-${d.id}`);
+
+                    if (nodeElement.empty()) {
+                        console.error("No element found for", d.id);
+                        return; // 如果没有找到元素，打印错误信息并退出函数
+                    }
+
+                    var x = parseFloat(nodeElement.attr("cx"));
+                    var y = parseFloat(nodeElement.attr("cy"));
+
+
+                    innlabelGroup.append("text")
+                        .attr("x", x)
+                        .attr("y", y)
+                        .attr("dy", "0.35em")  // 垂直居中
+                        .text(d.label_short)
+                        .attr('class', "inner-label")
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "7px")
+                        .style("fill", "black")
+                        .attr('opacity', 0)
+                        .transition(500)
+                        .attr('opacity', 1);
+                }
+
+
+                function showLabel(node) {
+                    // 使用外圈或内圈的标签显示逻辑
+                    if (node.class === 'D') {
+                        showOuterLabel(node);
+                    } else {
+                        showInnerLabel(node);
+                    }
+                }
+
+                function forceText() {
+                    const texts = svg.selectAll(".inner-label"); // 选择带有类名 'dynamic-text' 的元素
+                    // 提取文本数据
+                    const textsData = texts.nodes().map(text => {
+                        const bbox = text.getBBox();
+                        return {
+                            text: text.textContent,
+                            x: bbox.x + bbox.width / 2, // 计算中心位置
+                            y: bbox.y + bbox.height / 2,
+                            size: 10
+
+                        };
+                    });
+                    console.log("textsData")
+                    console.log(textsData)
+                    // 重新绑定数据
+                    texts.data(textsData);
+
+                    // 创建力模拟
+                    const simulation = d3.forceSimulation(textsData)
+                        .force("charge", d3.forceManyBody().strength(-5))
+                        .force("collision", d3.forceCollide().radius(d => d.size + 5)) // 使用 size 计算碰撞半径
+                        .on("tick", ticked);
+
+                    function ticked() {
+                        texts.attr('x', d => d.x) // 根据size调整文本的x位置
+                            .attr('y', d => d.y);  // 增加偏移以提高y位置的间隔
+                    }
+
+                    // 开始模拟
+                    simulation.alpha(1).restart();
+
+                }
+
+                // 维护一个记录当前高亮节点ID的变量
+                var highlightedNodeId = null;
+
+                function handleNodeClick(clickedNode) {
+                    outlabelGroup.selectAll("*").remove();
+                    innlabelGroup.selectAll("*").remove();
+                    // 清空旧的高亮连接
+                    linksGroup.selectAll(".highlighted-link").remove();
+
+                    const thisNodeData = clickedNode;
+                    console.log("Clicked node data:", thisNodeData);
+
+                    d3.selectAll('.detail-section').classed('hidden', false).style('flex', '1');
+                    drawTextDefault();
+
+                    // 检查是否点击的是已经高亮的节点
+                    if (highlightedNodeId === thisNodeData) {
+
+                        d3.selectAll('.detail-section').classed('hidden', false).style('flex', '1');
+                        // d3.select('#firstDetail').classed('hidden', false).style('flex', '1');
+
+                        // 如果是，取消高亮并清空信息框
+                        highlightedNodeId = null;
+                        nodesGroup.selectAll("circle")
+                            .attr("opacity", 1); // 将所有节点的透明度设置回默认值
+                        linksGroup.selectAll("path.link")
+                            .attr("opacity", 0.1); // 将所有连接线的透明度设置回默认值
+
+                        // outlabelGroup.selectAll("*").remove(); // 清空标签组中的内容
+                        outerNodes.forEach(node => showOuterLabel(node));
+
+
+                        // 设置其他相关元素的透明度，如背景圈、内外文字和弧形
+                        svg.selectAll(".innertext, .outertext, .arc")
+                            .attr("opacity", 1);
+                        // 设置其他相关元素的透明度，如背景圈、内外文字和弧形
+                        svg.selectAll(".bg")
+                            .attr("opacity", 1);
+
+
+                        // 移除信息框
+                        // leftTextSvg.select("#infoBox").remove();
+                    }
+                    else {
+                        // 高亮新的节点并将其 div 占满整个容器
+                        d3.selectAll('.detail-section').classed('hidden', true).style('flex', '0'); // 先隐藏所有节点
+                        d3.select('#firstDetail').classed('hidden', false).style('flex', '1 0 100%'); // 仅展开第一个 div
+
+                        highlightedNodeId = clickedNode;
+                        const relatedNodeIds = new Set();
+                        relatedNodeIds.add(thisNodeData.id); // 添加当前节点的ID
+                        const relatedCategories = new Set([thisNodeData.category]); // 添加当前节点的类别
+                        const relatedCategoriesCount = {};
+                        const relatedCategoriesCount_out = {};
+                        relatedCategoriesCount[thisNodeData.category] = (relatedCategoriesCount[thisNodeData.category] || 0) + 1;
+
+
+
+                        // 收集相关的连接线和节点
+                        linksGroup.selectAll("path.link").each(function (d) {
+                            // 直接使用d.source和d.target作为ID来比较
+                            if (d.source === thisNodeData.id || d.target === thisNodeData.id) {
+                                relatedNodeIds.add(d.source);
+                                relatedNodeIds.add(d.target);
+                            }
+                        });
+
+
+
+                        // 设置连接线透明度
+                        linksGroup.selectAll("path.link")
+                            .attr("opacity", d => (d.source === thisNodeData.id || d.target === thisNodeData.id) ? 0 : 0);
+
+                        // 显示被点击节点的标签
+                        // showLabel(thisNodeData);
+
+                        // 收集与被点击节点直接连接的 外圈节点
+                        nodesGroup.selectAll("circle.outer-node").each(function (d) {
+                            if (relatedNodeIds.has(d.id)) {
+                                relatedCategories.add(d.category); // 收集相关的类别
+                                const category = d.category;
+
+                                relatedCategoriesCount_out[category] = (relatedCategoriesCount_out[category] || 0) + 1; // 增加类别的计数
+
+                                showLabel(d); // 为相关节点显示标签
+
+
+                            }
+                        });
+                        // 收集与被点击节点直接连接的节点
+                        nodesGroup.selectAll("circle.node").each(function (d) {
+                            if (relatedNodeIds.has(d.data.id)) {
+                                relatedCategories.add(d.data.category); // 收集相关的类别
+                                const category = d.data.category;
+
+                                relatedCategoriesCount[category] = (relatedCategoriesCount[category] || 0) + 1; // 增加类别的计数
+                                showLabel(d.data); // 为相关节点显示标签
+
+                            }
+                        });
+
+                        const relatedLinks = links.filter(d => d.source === clickedNode.id || d.target === clickedNode.id);
+
+
+                        console.log(relatedNodeIds);
+                        console.log(relatedCategories);
+                        console.log(relatedCategoriesCount);
+                        console.log(relatedLinks);
+
+                        forceText();
+
+                        // 绘制并高亮相关连接线
+                        linksGroup.selectAll(".highlighted-link")
+                            .data(relatedLinks)
+                            .enter()
+                            .append("path")
+                            .attr("class", "highlighted-link")
+                            .attr("d", d => {
+                                const source = outerNodes.find(node => node.id === d.source);
+                                const targetCategory = categories.find(cat => packLayouts[cat].some(node => node.data.id === d.target));
+                                const target = packLayouts[targetCategory]?.find(node => node.data.id === d.target);
+
+                                return source && target ? customBezierCurve(source, target, targetCategory) : null;
+                            })
+                            .attr('stroke', d => {
+                                const source = outerNodes.find(node => node.id === d.source);
+                                return source ? categoryStrokeColors[source.category] : '#ccc';
+                            }).attr('stroke-width', 1.2)  // 增加线条宽度以高亮显示
+                            .attr('fill', 'none')
+                            .attr('opacity', 0.3)
+                            .each(function () {
+                                const length = this.getTotalLength();
+                                d3.select(this)
+                                    .attr("stroke-dasharray", length + " " + length)
+                                    .attr("stroke-dashoffset", length)
+                                    .transition()
+                                    .duration(1500)  // 动画持续时间，可以调整
+                                    .attr("stroke-dashoffset", 0);
+                            });
+
+
+                        // 显示被点击节点的标签
+
+                        // 设置外圈节点透明度
+                        nodesGroup.selectAll("circle.outer-node")
+                            .attr("opacity", d => relatedNodeIds.has(d.id) ? 1 : 0.3);
+
+                        // 设置内圈节点透明度
+                        nodesGroup.selectAll("circle.node")
+                            .attr("opacity", d => relatedNodeIds.has(d.data.id) ? 1 : 0.3);
+
+
+                        // 设置其他相关元素的透明度，如背景圈、内外文字和弧形
+                        svg.selectAll(".innertext, .outertext, .arc").each(function () {
+                            let element = d3.select(this);
+                            let id = element.attr('id');
+                            let category = id.split('-')[1]; // 从ID中提取类别
+                            element.attr("opacity", relatedCategories.has(category) ? 1 : 0.2);
+                        });
+                        // 设置其他相关元素的透明度，如背景圈、内外文字和弧形
+                        svg.selectAll(".bg").each(function () {
+                            let element = d3.select(this);
+                            let id = element.attr('id');
+                            let category = id.split('-')[1]; // 从ID中提取类别
+                            element.attr("opacity", relatedCategories.has(category) ? 1 : 0.2);
+                        });
+                        nodesGroup.selectAll("circle.node")
+                        drawTextNew(clickedNode, relatedCategoriesCount, relatedCategoriesCount_out);
+                    }
+                    function drawTextNew(clickedNode, catcount, catcount_out) {
+                        const nodeData = clickedNode;
+                        const countData = catcount;
+                        const countData_out = catcount_out;
+
+                        // 指定要保留的类别
+
+                        // 使用Object.entries和reduce来筛选和构建新对象
+                        // 使用Object.entries和reduce来筛选和构建新对象
+
+
+
+                        firstDetailSvg.select("#infoBox-first").remove();
+                        secondDetailSvg.select("#infoBox-second").remove();
+                        thirdDetailSvg.select("#infoBox-third").remove();
+                        fourthDetailSvg.select("#infoBox-fourth").remove();
+
+                        if (nodeData.class == "D") {
+                            drawPolicyText();
+                        } else {
+                            drawSectorText();
+                            // drawRightSectorText();
+                        }
+
+                        function drawSectorText() {
+                            console.log(countData_out)
+                            console.log("countData_out")
+
+
+                            firstDetailSvg.selectAll("*").remove();
+                            const infoBoxFirst = firstDetailSvg.append("g")
+                                .attr("id", "infoBox-first")
+                            // Add headers
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 24)
+                                .text("发布机构")
+                                .style("font-size", "12px")
+                                .style("font-weight", "500")
+                                .style("opacity", 0.68);
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 64)
+                                .style("text-anchor", "start")
+                                .text(nodeData.label)
+                                .style("font-size", "24px")
+                                .style("font-weight", "bold");
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 96)
+                                .text("机构类别")
+                                .style("font-size", "12px")
+                                .style("font-wight", "400")
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 116)
+                                .text(nodeData.category)
+                                .style("font-size", "14px")
+                                .style("font-weight", "bold");
+
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 136)
+                                .text("机构简介")
+                                .style("font-size", "12px")
+                            // infoBoxFirst.append("foreignObject")
+                            //     .attr("x", 12)
+                            //     .attr("y", 140)
+                            //     .attr("width", 160) // 固定宽度
+                            //     .attr("height", 140) // 高度根据需要调整
+                            //     .append("xhtml:div") // 添加HTML div元素
+                            //     .style("font-size", "14px")
+                            //     .style("font-weight", "bold")
+                            //     .html(nodeData.description); // 使用html方法插入文本，支持自动换行
+
+                            // Create a scrollable text box for all labels
+                            const scrollBox_0 = infoBoxFirst.append("foreignObject")
+                                .attr("width", 340)
+                                .attr("height", 156)
+                                .attr("x", 0)
+                                .attr("y", 130)  // Position below the bar chart
+                                .append("xhtml:div")
+                                .style("padding", "12px")
+                                .style("overflow", "auto");
+
+                            // Add labels
+                            const labelContainer_0 = scrollBox_0.append("xhtml:div")
+                                .style("height", "200px")
+                                .style("overflow-y", "auto");
+
+                            setupVerticalDragScroll(d3.select(labelContainer_0.node()));
+
+                            labelContainer_0.selectAll(".label")
+                                .data(nodeData.description.split('|')) // 使用split方法按"|"分割字符串
+                                .enter()
+                                .append("xhtml:div")  // 使用 join 替代 enter，更简洁的方式处理enter, update, exit
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .text(d => d)  // d 是整个字符串
+                                .style("opacity", 0)
+                                .transition()
+                                .delay((d, i) => i * 50)  // 只有一个元素，这个delay不会有实际作用
+                                .duration(400)
+                                .style("opacity", 1);
+
+                            infoBoxFirst.append("text")
+                                .attr("x", 358)
+                                .attr("y", 96)
+                                .text("主导发布政策")
+                                .style("font-size", "12px")
+
+
+                            // Create a scrollable text box for all labels
+                            const scrollBox = infoBoxFirst.append("foreignObject")
+                                .attr("width", 248)
+                                .attr("height", 200)
+                                .attr("x", 346)
+                                .attr("y", 92)  // Position below the bar chart
+                                .append("xhtml:div")
+                                .style("padding", "12px")
+                                .style("overflow", "auto");
+
+                            // Add labels
+                            const labelContainer = scrollBox.append("xhtml:div")
+                                .style("height", "240px")
+                                .style("overflow-y", "auto");
+
+                            setupVerticalDragScroll(d3.select(labelContainer.node()));
+
+                            labelContainer.selectAll(".label")
+                                .data(nodeData.issued.split('|')) // 使用split方法按"|"分割字符串
+                                .join("xhtml:div")  // 使用 join 替代 enter，更简洁的方式处理enter, update, exit
+                                .attr("class", "label")
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .text(d => d)  // d 是整个字符串
+                                .style("opacity", 0)
+                                .transition()
+                                .delay((d, i) => i * 50)  // 只有一个元素，这个delay不会有实际作用
+                                .duration(400)
+                                .style("opacity", 1);
+
+
+                            infoBoxFirst.append("text")
+                                .attr("x", 612)
+                                .attr("y", 96)
+                                .text("参与发布政策")
+                                .style("font-size", "12px")
+
+                            // Create a scrollable text box for all labels
+                            const scrollBox_2 = infoBoxFirst.append("foreignObject")
+                                .attr("width", 248)
+                                .attr("height", 200)
+                                .attr("x", 600)
+                                .attr("y", 96)  // Position below the bar chart
+                                .append("xhtml:div")
+                                .style("padding", "12px")
+                                .style("overflow", "auto");
+
+                            // Add labels
+                            const labelContainer_2 = scrollBox_2.append("xhtml:div")
+                                .style("height", "200px")
+                                .style("overflow-y", "auto");
+
+                            setupVerticalDragScroll(d3.select(labelContainer_2.node()));
+
+                            labelContainer_2.selectAll(".label")
+                                .data(nodeData.participated.split('|')) // 使用split方法按"|"分割字符串
+                                .join("xhtml:div")
+                                .attr("class", "label")
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .text(d => d)
+                                .style("opacity", 0)
+                                .transition()
+                                .delay((d, i) => i * 50)  // 同上
+                                .duration(400)
+                                .style("opacity", 1);
+
+                            let desiredCategories = ["国家经济与行业战略", "工业技术与传统工艺", "文化创意产业", "设计推广与奖励"];
+
+                            // 使用Object.keys和reduce来筛选和构建新对象
+                            let filteredCatcount = desiredCategories.reduce((acc, category) => {
+                                if (catcount_out.hasOwnProperty(category)) {
+                                    acc[category] = catcount_out[category]; // 只添加存在的类别和它的数值
+                                }
+                                return acc;
+                            }, {});
+                            console.log("filteredCatcountout")
+
+                            console.log(filteredCatcount)
+
+                            // 将数据转换为适合饼图的数组形式
+                            const piedataset = Object.entries(filteredCatcount).map(([key, value]) => ({
+                                category: key,
+                                count: value
+                            }));
+
+                            const pieChart = firstDetailSvg.append("g")
+                                .attr("transform", "translate(950,190)");
+
+
+                            // 创建饼图数据转换器
+                            const pie = d3.pie()
+                                .value(d => d.count);
+
+                            // 创建弧生成器
+                            const arc = d3.arc()
+                                .innerRadius(0)
+                                .outerRadius(80)
+                                .cornerRadius(4);  // 圆角设置
+                            ;
+
+                            // 准备初始状态的弧形生成器（用于动画起始）
+                            const arcTweenEnter = d => {
+                                const i = d3.interpolate(d.endAngle, d.startAngle);
+                                return function (t) {
+                                    d.startAngle = i(t);
+                                    return arc(d);
+                                };
+                            };
+
+                            // 绘制饼图
+                            const arcs = pieChart.selectAll('.arc')
+                                .data(pie(piedataset))
+                                .enter()
+                                .append('g')
+                                .attr('class', 'arc-detail');
+
+
+                            // 使用过渡动画绘制弧线
+                            arcs.append('path')
+                                .attr('fill', d => categoryStrokeColors[d.data.category] || '#ccc')
+                                .attr("opacity", 0.5)
+                                .transition()
+                                .duration(750)
+                                .attrTween('d', arcTweenEnter);
+
+
+                            // // 填充弧的颜色
+                            // arcs.append('path')
+                            //     .attr('d', arc)
+                            //     .attr('fill', d => categoryFillColors[d.data.category])
+                            //     .attr("opacity", 0.7);
+
+                            // 在弧中添加文本
+                            arcs.append('text')
+                                .attr('transform', d => `translate(${arc.centroid(d)})`)
+                                .attr('dy', '0.4em')
+                                .attr('text-anchor', 'middle')
+                                .text(d => `${d.data.category} ${d.data.count}`)
+                                .attr("fill", "#333");
+
+                        }
+
+                        function drawPolicyText() {
+
+                            firstDetailSvg.selectAll("*").remove();
+
+                            console.log("正在运行这个");
+                            const infoBoxFirst = firstDetailSvg.append("g")
+                                .attr("id", "infoBox-first")
+                            // Add headers
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 24)
+                                .text("设计政策")
+                                .style("font-size", "12px")
+                                .style("font-weight", "500")
+                                .style("opacity", 0.68);
+                            infoBoxFirst.append("text")
+                                .attr("x", 8)
+                                .attr("y", 64)
+                                .style("text-anchor", "start")
+                                .text(nodeData.label)
+                                .style("font-size", "24px")
+                                .style("font-weight", "bold");
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 96)
+                                .text("政策索引号")
+                                .style("font-size", "12px")
+                                .style("font-wight", "400")
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 116)
+                                .text(nodeData.index)
+                                .style("font-size", "14px")
+                                .style("font-weight", "bold");
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 136)
+                                .text("所属国家/地区")
+                                .style("font-size", "12px")
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 156)
+                                .text(nodeData.country)
+                                .style("font-size", "14px")
+                                .style("font-weight", "bold");
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 176)
+                                .text("所属主题")
+                                .style("font-size", "12px")
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 196)
+                                .text(nodeData.category)
+                                .style("font-size", "14px")
+                                .style("font-weight", "bold");
+                            infoBoxFirst.append("text")
+                                .attr("x", 12)
+                                .attr("y", 216)
+                                .text("政策关键词")
+                                .style("font-size", "12px")
+                            infoBoxFirst.append("foreignObject")
+                                .attr("x", 12)
+                                .attr("y", 220)
+                                .attr("width", 160) // 固定宽度
+                                .attr("height", 90) // 高度根据需要调整
+                                .append("xhtml:div") // 添加HTML div元素
+                                .style("font-size", "14px")
+                                .style("font-weight", "bold")
+                                .html(nodeData.keywords); // 使用html方法插入文本，支持自动换行
+
+                            const cats = [" ", "Category B", "Category C", "Category D", "Category E", "  "];
+
+                            const data = [
+                                { category: " ", y: 0 },
+                                { category: "Category B", y: 13 },
+                                { category: "Category C", y: 15 },
+                                { category: "Category D", y: 20 },
+                                { category: "Category E", y: 5 },
+                                { category: "  ", y: 0 }
+                            ];
+
+                            const margin = { top: 120, right: 20, bottom: 20, left: 30 };
+                            const width = 260 - margin.left - margin.right;
+                            const height = 260 - margin.top - margin.bottom;
+
+                            const lineChart = firstDetailSvg.append("g")
+                                .attr("transform", `translate(${250}, ${130})`);  // 根据需要调整位置
+
+                            // 创建X轴的比例尺
+                            const xScale = d3.scaleBand()
+                                .domain(cats)
+                                .range([0, width])
+                                .padding(0.1);
+
+                            const yScale = d3.scaleLinear()
+                                .domain([0, d3.max(data, d => d.y)])
+                                .range([height, 0]);
+
+                            // 添加X轴
+                            // 绘制并设置X轴
+                            lineChart.append("g")
+                                .attr("transform", `translate(0, ${height})`)
+                                .call(d3.axisBottom(xScale)
+                                    .tickSize(0)
+                                    .tickPadding(10))
+                                .select(".domain").remove()
+                                .selectAll("text")
+                                .attr("class", "axis-text");  // 应用样式类
+
+                            // 添加Y轴
+                            // lineChart.append("g")
+                            //     .call(d3.axisLeft(yScale).tickSize(0).tickFormat(""));
+
+
+                            // 绘制折线
+                            const line = d3.line()
+                                .x(d => xScale(d.category) + xScale.bandwidth() / 2)  // 将点定位到带状的中心
+                                .y(d => yScale(d.y))
+                                .curve(d3.curveMonotoneX);  // 使用MonotoneX曲线使线条平滑
+
+                            const path = lineChart.append("path")
+                                .datum(data)
+                                .attr("fill", "none")
+                                .attr("stroke", "#37AB00")
+                                .attr("stroke-width", 1.5)
+                                .attr("d", line);
+
+                            const totalLength = path.node().getTotalLength();
+
+                            path.attr("stroke-dasharray", totalLength + " " + totalLength)
+                                .attr("stroke-dashoffset", totalLength)
+                                .transition()  // 开始动画过渡
+                                .duration(1000)  // 动画持续时间
+                                .attr("stroke-dashoffset", 0);
+
+                            const maxDataPoint = data.reduce((max, point) => (point.y > max.y ? point : max), data[0]);
+
+                            lineChart.append("circle")
+                                .attr("cx", xScale(maxDataPoint.category) + xScale.bandwidth() / 2)
+                                .attr("cy", yScale(maxDataPoint.y))
+                                .attr("r", 5)
+                                .attr("fill", "#37AB00")
+                                .style("opacity", 0)
+                                .transition()
+                                .delay(1000)
+                                .style("opacity", 1);
+
+                            lineChart.append("text")
+                                .attr("x", xScale(maxDataPoint.category) + xScale.bandwidth() / 2 + 10)
+                                .attr("y", yScale(maxDataPoint.y))
+                                .attr("dy", "-0.5em")
+                                .style("font-size", "12px")
+                                .style("font-weight", "bold")
+                                .style("fill", "#37AB00")
+                                .text(maxDataPoint.category)
+                                .style("opacity", 0)
+                                .transition()
+                                .delay(1000)
+                                .style("opacity", 1);
+
+                            data.forEach(d => {
+                                // 绘制垂直线
+                                lineChart.append("line")
+                                    .attr("x1", xScale(d.category) + xScale.bandwidth() / 2) // 加上bandwidth的一半以定位到条带中心
+                                    .attr("y1", yScale(d.y))
+                                    .attr("x2", xScale(d.category) + xScale.bandwidth() / 2)
+                                    .attr("y2", height)
+                                    .attr("stroke", "grey")
+                                    .attr("opacity", 0.6)
+                                    .style("stroke-dasharray", ("3, 3")); // 可选的，为线条添加虚线样式
+
+                                // 添加文本标签
+                                lineChart.append("text")
+                                    .attr("x", xScale(d.category) + xScale.bandwidth() / 2)
+                                    .attr("y", yScale(d.y) - 10) // 在点上方一些位置显示文本
+                                    .text(d.y)
+                                    .attr("text-anchor", "middle") // 确保文本在点的正上方居中对齐
+                                    .attr("font-size", "10px")
+                                    .attr("fill", "black");
+                            });
+
+                            infoBoxFirst.append("text")
+                                .attr("x", 502)
+                                .attr("y", 96)
+                                .text("主导发布机构")
+                                .style("font-size", "12px")
+
+
+                            // Create a scrollable text box for all labels
+                            const scrollBox = infoBoxFirst.append("foreignObject")
+                                .attr("width", 248)
+                                .attr("height", 200)
+                                .attr("x", 490)
+                                .attr("y", 92)  // Position below the bar chart
+                                .append("xhtml:div")
+                                .style("padding", "12px")
+                                .style("overflow", "auto");
+
+                            // Add labels
+                            const labelContainer = scrollBox.append("xhtml:div")
+                                .style("height", "48px")
+                                .style("overflow-y", "auto");
+
+                            setupVerticalDragScroll(d3.select(labelContainer.node()));
+
+                            labelContainer.selectAll(".label")
+                                .data(nodeData.issued.split('|')) // 使用split方法按"|"分割字符串
+                                .join("xhtml:div")  // 使用 join 替代 enter，更简洁的方式处理enter, update, exit
+                                .attr("class", "label")
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .text(d => d)  // d 是整个字符串
+                                .style("opacity", 0)
+                                .transition()
+                                .delay((d, i) => i * 50)  // 只有一个元素，这个delay不会有实际作用
+                                .duration(400)
+                                .style("opacity", 1);
+
+
+                            infoBoxFirst.append("text")
+                                .attr("x", 502)
+                                .attr("y", 170)
+                                .text("参与发布机构")
+                                .style("font-size", "12px")
+
+                            // Create a scrollable text box for all labels
+                            const scrollBox_2 = infoBoxFirst.append("foreignObject")
+                                .attr("width", 248)
+                                .attr("height", 200)
+                                .attr("x", 490)
+                                .attr("y", 166)  // Position below the bar chart
+                                .append("xhtml:div")
+                                .style("padding", "12px")
+                                .style("overflow", "auto");
+
+                            // Add labels
+                            const labelContainer_2 = scrollBox_2.append("xhtml:div")
+                                .style("height", "110px")
+                                .style("overflow-y", "auto");
+
+                            setupVerticalDragScroll(d3.select(labelContainer_2.node()));
+
+                            labelContainer_2.selectAll(".label")
+                                .data(nodeData.participated.split('|')) // 使用split方法按"|"分割字符串
+                                .join("xhtml:div")
+                                .attr("class", "label")
+                                .style("font-size", "14px")
+                                .style("font-weight", "500")
+                                .text(d => d)
+                                .style("opacity", 0)
+                                .transition()
+                                .delay((d, i) => i * 50)  // 同上
+                                .duration(400)
+                                .style("opacity", 1);
+
+                            let desiredCategories = ["非政府组织", "政府部门及区域性政府间组织", "政府附属机构", "学术及研究机构", "企业和商业服务机构"];
+
+                            // 使用Object.keys和reduce来筛选和构建新对象
+                            let filteredCatcount = desiredCategories.reduce((acc, category) => {
+                                if (catcount.hasOwnProperty(category)) {
+                                    acc[category] = catcount[category]; // 只添加存在的类别和它的数值
+                                }
+                                return acc;
+                            }, {});
+
+
+                            // 将数据转换为适合饼图的数组形式
+                            const piedataset = Object.entries(filteredCatcount).map(([key, value]) => ({
+                                category: key,
+                                count: value
+                            }));
+
+                            const pieChart = firstDetailSvg.append("g")
+                                .attr("transform", "translate(900,190)");
+
+
+                            // 创建饼图数据转换器
+                            const pie = d3.pie()
+                                .value(d => d.count);
+
+                            // 创建弧生成器
+                            const arc = d3.arc()
+                                .innerRadius(0)
+                                .outerRadius(80)
+                                .cornerRadius(4);  // 圆角设置
+                            ;
+
+                            // 准备初始状态的弧形生成器（用于动画起始）
+                            const arcTweenEnter = d => {
+                                const i = d3.interpolate(d.endAngle, d.startAngle);
+                                return function (t) {
+                                    d.startAngle = i(t);
+                                    return arc(d);
+                                };
+                            };
+
+                            // 绘制饼图
+                            const arcs = pieChart.selectAll('.arc')
+                                .data(pie(piedataset))
+                                .enter()
+                                .append('g')
+                                .attr('class', 'arc-detail');
+
+
+                            // 使用过渡动画绘制弧线
+                            arcs.append('path')
+                                .attr('fill', d => categoryInnerStrokeColors[d.data.category] || '#ccc')
+                                .attr("opacity", 0.6)
+                                .transition()
+                                .duration(750)
+                                .attrTween('d', arcTweenEnter);
+
+                            // 在弧中添加文本
+                            arcs.append('text')
+                                .attr('transform', d => `translate(${arc.centroid(d)})`)
+                                .attr('dy', '0.4em')
+                                .attr('text-anchor', 'middle')
+                                .text(d => `${d.data.category} ${d.data.count}`)
+                                .attr("fill", "#333");
+
+
+                        }
+
+                    }
+                }
+
+                function drawTextDefault() {
+
+
+                    function drawFirstText() {
+                        firstDetailSvg.select("#infoBox-first").remove();
+                        const infoBoxFirst = firstDetailSvg.append("g")
+                            .attr("id", "infoBox-first");
+                        infoBoxFirst.append("text")
+                            .attr("x", 123)
+                            .attr("y", 28)
+                            .text("政策主题分布")
+                            .style("text-anchor", "middle")
+                            .style("font-size", "12px")
+                            .style("text-align", "center")
+                            .style("font-weight", "400");
+                        // 筛选出类别为'D'的节点并按照category分类
+                        const categoryCount = d3.rollups(outerNodes, v => v.length, d => d.category);
+
+                        // 绘制横向的条形图
+                        const xScale = d3.scaleLinear()
+                            .domain([0, d3.max(categoryCount, d => d[1])])
+                            .range([0, 230]);
+
+                        const yScale = d3.scaleBand()
+                            .domain(categoryCount.map(d => d[0]))
+                            .range([28, 340])  // Adjusted for headers
+                            .padding(0.6);
+
+                        // Draw bars
+                        const bars = infoBoxFirst.selectAll(".bar")
+                            .data(categoryCount)
+                            .enter()
+                            .append("rect")
+                            .attr("class", "bar")
+                            .attr("x", 12)
+                            .attr("y", d => yScale(d[0]))
+                            .attr("rx", 3)
+                            .attr("ry", 3)
+                            .attr("width", 0)
+                            .attr("height", yScale.bandwidth())
+                            .attr("fill", d => categoryStrokeColors[d[0]])
+                            .attr("opacity", 0.4);  // Use category-specific colors
+
+                        // 应用动画使条形图从左到右生长
+                        bars.transition()
+                            .duration(750)  // 动画持续时间，单位为毫秒
+                            .attr("width", d => xScale(d[1]));  // 最终宽度
+
+                        // Draw category names above each bar
+                        infoBoxFirst.selectAll(".category-label")
+                            .data(categoryCount)
+                            .enter()
+                            .append("text")
+                            .attr("x", 12)
+                            .attr("y", d => yScale(d[0]) - 8)
+                            .text(d => d[0])
+                            .style("text-anchor", "start")
+                            .style("font-size", "10px")
+                            .style("fill", d => categoryStrokeColors[d[0]])
+                            .attr("opacity", 0)  // 初始透明度为0
+                            .transition()
+                            .delay(650)  // 延迟与条形图动画的持续时间相同
+                            .attr("opacity", 1);  // 最终透明度为1
+                        // Use category-specific stroke colors
+
+
+                        // Draw category counts on the bars
+                        infoBoxFirst.selectAll(".category-value")
+                            .data(categoryCount)
+                            .enter()
+                            .append("text")
+                            // .attr("x", d => xScale(d[1])) //在后面
+                            .attr("x", 18)
+                            .attr("y", d => yScale(d[0]) + yScale.bandwidth() / 2 + 4)
+                            .text(d => d[1])
+                            .style("font-size", "12px")
+                            .style("fill", d => categoryStrokeColors[d[0]])
+                            .attr("opacity", 0)
+                            .transition()
+                            .delay(650)  // 确保条形图已经展示
+                            .attr("opacity", 1);
+                    }
+
+
+                    function drawSecondText() {
+                        secondDetailSvg.select("#infoBox-second").remove();
+                        const infoBoxSecond = secondDetailSvg.append("g")
+                            .attr("id", "infoBox-second");
+
+                        // Add headers
+                        infoBoxSecond.append("text")
+                            .attr("x", 123)
+                            .attr("y", 28)
+                            .text("设计政策名称")
+                            .style("text-anchor", "middle")
+                            .style("font-size", "12px")
+                            .style("text-align", "center")
+                            .style("font-weight", "400");
+                        // Use category-specific stroke colors
+
+
+                        // Create a scrollable text box for all labels
+                        const scrollBox = infoBoxSecond.append("foreignObject")
+                            .attr("width", 248)
+                            .attr("height", 260)
+                            .attr("x", 0)
+                            .attr("y", 36)  // Position below the bar chart
+                            .append("xhtml:div")
+                            .style("padding", "12px")
+                            .style("overflow", "auto");
+
+                        // Add labels
+                        const labelContainer = scrollBox.append("xhtml:div")
+                            .style("height", "260px")
+                            .style("overflow-y", "auto");
+
+                        setupVerticalDragScroll(d3.select(labelContainer.node()));
+
+                        labelContainer.selectAll(".label")
+                            .data(outerNodes.map(d => d.label))
+                            .enter()
+                            .append("xhtml:div")
+                            .attr("class", "label")
+                            .style("font-size", "10px")
+                            .text(d => d)
+                            .style("opacity", 0)  // 初始不透明度为 0
+                            .transition()         // 开始动画过渡
+                            .delay((d, i) => i * 50) // 每个标签延迟 100 毫秒以创建序列效果
+                            .duration(400)        // 每个标签的淡入时间
+                            .style("opacity", 1); // 结束不透明度为 1;
+                    }
+                    function drawThirdText() {
+                        thirdDetailSvg.select("#infoBox-third").remove();
+                        const infoBoxThird = thirdDetailSvg.append("g")
+                            .attr("id", "infoBox-third");
+                        // Add headers
+                        infoBoxThird.append("text")
+                            .attr("x", 123)
+                            .attr("y", 28)
+                            .text("机构类型分布")
+                            .style("text-anchor", "middle")
+                            .style("font-size", "12px")
+                            .style("text-align", "center")
+                            .style("font-weight", "400");
+
+                        // d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E7%B1%BB%E5%88%AB%E5%88%86%E5%B8%83.svg").then(svgDocument => {
+                        d3.xml("https://jiangweiludata.oss-cn-beijing.aliyuncs.com/%E7%B1%BB%E5%88%AB%E5%88%86%E5%B8%83_v2.svg").then(svgDocument => {
+
+                            // 获取加载的SVG内容
+                            const importedSvg = svgDocument.documentElement;
+                            importedSvg.setAttribute("viewBox", "0 0 239.8 218.9"); // 根据你的SVG实际尺寸调整
+                            importedSvg.setAttribute("width", "300");
+                            importedSvg.setAttribute("height", "220");
+
+
+                            // 添加SVG内容到页面中
+                            const svgContainer = d3.select("#infoBox-third").append("svg")
+                                .attr('id', 'sectorfenbu')
+                                .attr('x', -6)
+                                .attr('y', 72)
+                                .node().appendChild(importedSvg)
+
+
+                            // 设置初始透明度为0
+                            d3.select(importedSvg).style('opacity', 0)
+                                .transition() // 开始一个过渡
+                                .duration(1000) // 过渡持续1000毫秒（1秒）
+                                .style('opacity', 1); // 最终透明度为1
+                        })
+                            .catch(error => {
+                                // console.error("Error loading SVG:", error);
+                                return 0;
+                            });
+
+                    }
+                    function drawFourthText() {
+                        fourthDetailSvg.select("#infoBox-fourth").remove();
+                        const infoBoxFourth = fourthDetailSvg.append("g")
+                            .attr("id", "infoBox-fourth");
+
+                        const categoryCount = d3.rollups(innerNodes, v => v.length, d => d.category);
+
+
+                        // Add headers
+                        infoBoxFourth.append("text")
+                            .attr("x", 123)
+                            .attr("y", 28)
+                            .text("发布机构名称")
+                            .style("text-anchor", "middle")
+                            .style("font-size", "12px")
+                            .style("text-align", "center")
+                            .style("font-weight", "400");
+                        // Use category-specific stroke colors
+
+
+                        // Create a scrollable text box for all labels
+                        const scrollBox = infoBoxFourth.append("foreignObject")
+                            .attr("width", 248)
+                            .attr("height", 260)
+                            .attr("x", 0)
+                            .attr("y", 36)  // Position below the bar chart
+                            .append("xhtml:div")
+                            .style("padding", "12px")
+                            .style("overflow", "auto");
+
+                        // Add labels
+                        const labelContainer = scrollBox.append("xhtml:div")
+                            .style("height", "260px")
+                            .style("overflow-y", "auto");
+
+                        setupVerticalDragScroll(d3.select(labelContainer.node()));
+
+                        labelContainer.selectAll(".label")
+                            .data(innerNodes.map(d => d.label))
+                            .enter()
+                            .append("xhtml:div")
+                            .attr("class", "label")
+                            .style("font-size", "10px")
+                            .text(d => d)
+                            .style("opacity", 0)  // 初始不透明度为 0
+                            .transition()         // 开始动画过渡
+                            .delay((d, i) => i * 50) // 每个标签延迟 100 毫秒以创建序列效果
+                            .duration(400)        // 每个标签的淡入时间
+                            .style("opacity", 1); // 结束不透明度为 1;
+                    }
+                    d3.selectAll('.detail-section').classed('hidden', false).style('flex', '100%'); // 先隐藏所有节点
+
+                    drawFirstText();
+                    drawSecondText();
+                    drawThirdText();
+                    drawFourthText();
+
+                }
+            });
+
+        }
+
+
+        // 为按钮添加事件监听器
+        document.getElementById('domestic').addEventListener('click', function () {
+            loadData_international('data_0514.json'); // 假设国内数据存储在 'data_domestic.json'
+        });
+
+        document.getElementById('international').addEventListener('click', function () {
+            loadData_domestic('cn_data_0514.json'); // 假设国外数据存储在 'data_international.json'
+
+        });
+
+        // 默认加载国内视图
+        loadData_international();
+        // loadData_domestic();
+        function setupVerticalDragScroll(scrollContainer) {
+            let isDragging = false;
+            let startPosY = 0;
+            let scrollTopStartPos = 0;
+
+            scrollContainer
+                .on("mousedown", function (event) {
+                    isDragging = true;
+                    startPosY = event.clientY;
+                    scrollTopStartPos = this.scrollTop;
+                    scrollContainer.style("cursor", "grabbing");
+                })
+                .on("mousemove", function (event) {
+                    if (isDragging) {
+                        const dy = event.clientY - startPosY;
+                        this.scrollTop = scrollTopStartPos - dy;
+                    }
+                })
+                .on("mouseup", function () {
+                    isDragging = false;
+                    scrollContainer.style("cursor", "grab");
+                })
+                .on("mouseleave", function () {
+                    if (isDragging) {
+                        isDragging = false;
+                        scrollContainer.style("cursor", "grab");
+                    }
+                });
+
+            scrollContainer.style("cursor", "grab");
+            scrollContainer.style("user-select", "none");  // 防止在拖动时选择文本
+        }
+
+
+
+    </script>
+</body>
+
+</html>
