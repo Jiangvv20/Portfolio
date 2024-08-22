@@ -48,7 +48,7 @@
     <script>
         function loadData_international() {
             d3.select("#svgcanvas").selectAll("*").remove(); // 清空 SVG 内的所有内容
-            const jsonFile = 'data_0514.json';
+            const jsonFile = 'https://jiangweiludata.oss-cn-beijing.aliyuncs.com/data_0514.json?Expires=1724367732&OSSAccessKeyId=TMP.3Kis1cfZFqJhBg1SZbRh3bcVx9C2XAtAzAmvCsP8jFB1kNdphGJmCdb7ZPecUeSCjjLxSEDmkSoyCEcWasWdwyfQVPpGSq&Signature=Ah1aP%2BnJeWp9lCNA89b3tUYVA3Y%3D';
 
 
             d3.json(jsonFile).then(function (data) {
