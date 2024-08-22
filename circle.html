@@ -12,7 +12,7 @@
 <body>
     <div class="container">
         <div class="text-center mt-3">
-            <h3>“一带一路”沿线国家设计政策发布机构合作网络图</h3>
+            <h3>标题</h3>
         </div>
 
         <div id="details">
@@ -48,7 +48,7 @@
     <script>
         function loadData_international() {
             d3.select("#svgcanvas").selectAll("*").remove(); // 清空 SVG 内的所有内容
-            const jsonFile = 'https://jiangweiludata.oss-cn-beijing.aliyuncs.com/data_0514.json';
+            const jsonFile = 'data_0514.json';
 
 
             d3.json(jsonFile).then(function (data) {
@@ -297,9 +297,21 @@
                         .attr("class", "link")
                         .attr("d", d => {
                             const source = outerNodes.find(node => node.id === d.source);
-                            const targetCategory = categories.find(cat => packLayouts[cat].some(node => node.data.id === d.target));
-                            const target = packLayouts[targetCategory]?.find(node => node.data.id === d.target);
+                            let targetCategory, target;
 
+                            for (const cat of categories) {
+                                const categoryNodes = packLayouts[cat];
+                                if (categoryNodes) {
+                                    const foundNode = categoryNodes.find(node => node.data.id === d.target);
+                                    if (foundNode) {
+                                        targetCategory = cat;
+                                        target = foundNode;
+                                        break; // 找到后立即停止循环
+                                    }
+                                }
+                            }
+
+                            // 仅在确定找到 source 和 target 后才调用 customBezierCurve
                             return source && target ? customBezierCurve(source, target, targetCategory) : null;
                         })
                         .attr('fill', 'none')
@@ -723,8 +735,12 @@
                     }
                 }
 
-                function forceText() {
-                    const texts = svg.selectAll(".inner-label"); // 选择带有类名 'dynamic-text' 的元素
+                function forceText(innerTextData) {
+                    let texts = svg.selectAll(".inner-label"); // 选择带有类名 'dynamic-text' 的元素
+                    
+                    innlabelGroup
+
+
                     // 提取文本数据
                     const textsData = texts.nodes().map(text => {
                         const bbox = text.getBBox();
@@ -736,10 +752,20 @@
 
                         };
                     });
-                    console.log("textsData")
-                    console.log(textsData)
-                    // 重新绑定数据
-                    texts.data(textsData);
+
+                    innlabelGroup.selectAll("text").remove();
+                    texts = innlabelGroup.selectAll("text")
+                        .data(textsData)
+                        .join("text")
+                        .attr("x", d => d.x)
+                        .attr("y", d => d.y)
+                        .attr("dy", "0.35em")  // 垂直居中
+                        .text(d => d.text)
+                        .attr('class', "inner-label")
+                        .attr("text-anchor", "middle")
+                        .style("font-size", "7px")
+                        .style("fill", "black")
+                        .attr('opacity', 1)
 
                     // 创建力模拟
                     const simulation = d3.forceSimulation(textsData)
@@ -748,12 +774,13 @@
                         .on("tick", ticked);
 
                     function ticked() {
+                        // console.log(texts)
                         texts.attr('x', d => d.x) // 根据size调整文本的x位置
                             .attr('y', d => d.y);  // 增加偏移以提高y位置的间隔
                     }
 
                     // 开始模拟
-                    simulation.alpha(1).restart();
+                    // simulation.alpha(1).restart();
 
                 }
 
@@ -846,6 +873,7 @@
 
                             }
                         });
+                        let innerTextData = []
                         // 收集与被点击节点直接连接的节点
                         nodesGroup.selectAll("circle.node").each(function (d) {
                             if (relatedNodeIds.has(d.data.id)) {
@@ -853,7 +881,9 @@
                                 const category = d.data.category;
 
                                 relatedCategoriesCount[category] = (relatedCategoriesCount[category] || 0) + 1; // 增加类别的计数
-                                showLabel(d.data); // 为相关节点显示标签
+                                showLabel(d.data); // 为相关节点显示标签  
+                                if(d.data.class != 'D')
+                                    innerTextData.push(d.data);
 
                             }
                         });
@@ -866,7 +896,7 @@
                         console.log(relatedCategoriesCount);
                         console.log(relatedLinks);
 
-                        forceText();
+                        forceText(innerTextData);
 
                         // 绘制并高亮相关连接线
                         linksGroup.selectAll(".highlighted-link")
