@@ -47,7 +47,7 @@ html {
 
 body {
     transform: rotate(-90deg);
-    transform-origin: 550px 550px;
+    transform-origin: 540px 540px;
 }
 
 .container {
